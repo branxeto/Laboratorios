@@ -1,117 +1,108 @@
-#Generar un programa, en python3 utilizando ChatGPT, que permita enviar los ca- racteres del string (el del paso 1) en varios paquetes ICMP request (un caracter por paquete en el campo data de ICMP). El comando para ejecutar el código no tiene que tener el código IP a utilizar, tiene que tener por defecto la IP 8.8.8.8.
-#
 #!/usr/bin/env python3
-# pingv4.py
-# Enviar un string como múltiples ICMP Echo Request (1 carácter por paquete).
-# Requisitos: sudo apt install python3-scapy  (o)  sudo pip3 install scapy
-
-#!/usr/bin/env python3
-# pingv4.py
-# Enviar un string como múltiples ICMP Echo Request (1 carácter por paquete, payload de 48 bytes).
-# Requisitos: sudo apt install python3-scapy  (o)  sudo pip3 install scapy
-
-import argparse
+import os
 import sys
 import time
-import os
+import random
+import socket
 import struct
-from scapy.all import IP, ICMP, Raw, send  # usa sr1 si quieres verificar respuestas
 
-# --- Layout del payload (48 bytes = 0x30) ---
-# [0x00:0x08) -> 8 bytes: timestamp fijo (double big-endian)
-# [0x08:0x09) -> 1 byte: carácter que varía por paquete
-# [0x09:0x10) -> 7 bytes: encabezado fijo 'INFOHDR' como relleno
-# [0x10:0x30) -> 32 bytes: bloque constante (se mantiene entre paquetes)
+# -------- Config --------
+DEST_IP = "8.8.8.8"            # IP por defecto (no se pasa por argv)
+DATA_LEN = 48                  # bytes de DATA en ICMP
+SEND_INTERVAL_SEC = 0.2        # pausa entre paquetes
+START_ID = random.randint(1, 0x7FFF)  # ID inicial (luego se incrementa)
+START_SEQ = 1                  # Seq inicial (luego se incrementa)
 
-PAYLOAD_LEN = 0x30  # 48 bytes
-IDX_TS_START = 0x00
-IDX_TS_END = 0x08
-IDX_CHAR = 0x08
-IDX_FILL_START = 0x09
-IDX_FILL_END = 0x10
-IDX_CONST2_START = 0x10
-IDX_CONST2_END = 0x30  # exclusivo
 
-FILL_BYTES = b"INFOHDR"  # 7 bytes para [0x09..0x0F]
+# -------- Utilidades --------
+def icmp_checksum(data: bytes) -> int:
+    """Calcula el checksum de ICMP (RFC 1071)."""
+    if len(data) % 2:
+        data += b'\x00'
+    s = 0
+    for i in range(0, len(data), 2):
+        w = data[i] << 8 | data[i+1]
+        s = (s + w) & 0xffffffff
 
-def construir_payload_base() -> bytearray:
-    """Construye el payload base de 48 bytes con timestamp fijo y bloques constantes."""
-    if PAYLOAD_LEN != 48:
-        raise ValueError("El payload debe ser exactamente de 48 bytes.")
-    payload = bytearray(PAYLOAD_LEN)
+    # Fold a 16 bits
+    while (s >> 16):
+        s = (s & 0xFFFF) + (s >> 16)
 
-    # Timestamp fijo (double big-endian)
-    ts0 = time.time()
-    payload[IDX_TS_START:IDX_TS_END] = struct.pack("!d", ts0)
+    return (~s) & 0xFFFF
 
-    # Relleno fijo en [0x09:0x10)
-    payload[IDX_FILL_START:IDX_FILL_END] = FILL_BYTES.ljust(IDX_FILL_END - IDX_FILL_START, b"\x00")
 
-    # Bloque constante [0x10:0x30)
-    const_block = os.urandom(IDX_CONST2_END - IDX_CONST2_START)
-    payload[IDX_CONST2_START:IDX_CONST2_END] = const_block
+def build_icmp_packet(icmp_id: int, seq: int, payload: bytes) -> bytes:
+    """Crea un paquete ICMP Echo Request (Type=8, Code=0) con DATA=payload."""
+    icmp_type = 8  # Echo Request
+    icmp_code = 0
+    chksum = 0
 
-    # El byte [0x08] (carácter variable) se setea por paquete
-    payload[IDX_CHAR] = 0x00
+    header = struct.pack('!BBHHH', icmp_type, icmp_code, chksum, icmp_id, seq)
+    packet = header + payload
 
-    return payload
+    chksum = icmp_checksum(packet)
+    header = struct.pack('!BBHHH', icmp_type, icmp_code, chksum, icmp_id, seq)
+    return header + payload
 
-def enviar_icmp_por_caracter(destino: str, mensaje: str, intervalo: float, ttl: int,
-                             id_base: int, seq_base: int):
-    if not mensaje:
-        print("Nada que enviar: el mensaje está vacío.")
-        return
 
-    base = construir_payload_base()
+def make_payload_for_byte(b: int) -> bytes:
+    """
+    Construye DATA de 48 bytes.
+    Primer byte = b (el 'carácter'), el resto se rellena con ceros.
+    """
+    if not (0 <= b <= 255):
+        raise ValueError("Byte fuera de rango (0-255).")
 
-    for i, ch in enumerate(mensaje):
-        # Convertir a un solo byte (si UTF-8 produce varios, se usa el primero)
-        ch_b = ch.encode("utf-8", errors="replace")[:1] or b"\x00"
+    filler = b'\x00' * (DATA_LEN - 1)
+    return bytes([b]) + filler
 
-        payload = bytearray(base)
-        payload[IDX_CHAR] = ch_b[0]  # solo cambia este byte
 
-        icmp_pkt = ICMP(
-            type=8, code=0,
-            id=((id_base + i) & 0xFFFF),     # identificación coherente
-            seq=((seq_base + i) & 0xFFFF)    # secuencia coherente
-        )
-        ip_pkt = IP(dst=destino, ttl=ttl)
-        pkt = ip_pkt / icmp_pkt / Raw(load=bytes(payload))
+# -------- Main --------
+def main():
+    if len(sys.argv) < 2:
+        print(f"Uso: {os.path.basename(sys.argv[0])} <string_a_enviar>")
+        print("Ejemplo: sudo python3 readv2.py \"Hola\"")
+        sys.exit(1)
+
+    message = sys.argv[1]
+
+    # Convertimos a bytes (UTF-8). Se enviará un byte por paquete.
+    data_bytes = message.encode('utf-8')
+
+    # Socket RAW para ICMP
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+    except PermissionError:
+        print("Error: se requieren privilegios de administrador para sockets RAW (prueba con sudo).")
+        sys.exit(1)
+
+    icmp_id = START_ID
+    seq = START_SEQ
+
+    print(f"Destino: {DEST_IP}")
+    print(f"Bytes a enviar (UTF-8): {len(data_bytes)} (uno por paquete, DATA={DATA_LEN} bytes)")
+    print(f"ID inicial: {icmp_id}, Seq inicial: {seq}")
+    print("Enviando...\n")
+
+    sent = 0
+    for b in data_bytes:
+        payload = make_payload_for_byte(b)
+        packet = build_icmp_packet(icmp_id, seq, payload)
 
         try:
-            send(pkt, verbose=False)
-            print(f"Enviado: char='{ch}' (0x{ch_b.hex()}) -> {destino}  id={icmp_pkt.id} seq={icmp_pkt.seq}")
-        except PermissionError:
-            print("Error: se requieren privilegios (sudo) o setcap cap_net_raw a python3.", file=sys.stderr)
-            sys.exit(1)
+            sock.sendto(packet, (DEST_IP, 0))
+            print(f"Enviado: char_byte={b} (0x{b:02x}) id={icmp_id} seq={seq}")
         except Exception as e:
-            print(f"Error al enviar paquete para '{ch}': {e}", file=sys.stderr)
+            print(f"Fallo al enviar id={icmp_id} seq={seq}: {e}")
 
-        if i < len(mensaje) - 1 and intervalo > 0:
-            time.sleep(intervalo)
+        icmp_id += 1
+        seq += 1
+        sent += 1
+        time.sleep(SEND_INTERVAL_SEC)
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Envía un string como múltiples ICMP Echo Request (1 carácter por paquete, payload=48 bytes). "
-                    "Mantiene timestamp [0x00:0x08) y bloque constante [0x10:0x30)."
-    )
-    parser.add_argument("mensaje", help="Texto a enviar (1 carácter por paquete ICMP)")
-    parser.add_argument("-i", "--intervalo", type=float, default=0.1, help="Pausa entre paquetes en segundos (default: 0.1)")
-    parser.add_argument("--ttl", type=int, default=64, help="TTL IP (default: 64)")
-    parser.add_argument("--id-base", type=int, default=0x1234, help="ICMP id base (0-65535, default: 0x1234)")
-    parser.add_argument("--seq-base", type=int, default=1, help="ICMP seq base (0-65535, default: 1)")
-    parser.add_argument("--dest", default="8.8.8.8", help="(Opcional) IP/host destino. Por defecto 8.8.8.8")
-    args = parser.parse_args()
+    sock.close()
+    print(f"\nListo. Paquetes ICMP enviados: {sent}")
 
-    enviar_icmp_por_caracter(
-        destino=args.dest,
-        mensaje=args.mensaje,
-        intervalo=args.intervalo,
-        ttl=args.ttl,
-        id_base=args.id_base,
-        seq_base=args.seq_base
-    )
 
 if __name__ == "__main__":
     main()

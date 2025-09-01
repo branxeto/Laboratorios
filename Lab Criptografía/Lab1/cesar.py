@@ -18,9 +18,8 @@ if __name__ == "__main__":
         print("Uso: python3 cesar.py \"<texto>\" <corrimiento>")
         sys.exit(1)
 
-    # El primer argumento después del nombre del script es el texto
     texto = sys.argv[1]
-    # El segundo argumento es el corrimiento
+    
     corrimiento = int(sys.argv[2])
 
     texto_cifrado = cifrado_cesar(texto, corrimiento)
