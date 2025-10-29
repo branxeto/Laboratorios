@@ -26,6 +26,12 @@ def encrypt_DES(key, IV, text):
     print("Texto cifrado con DES: ", msg.hex())
     return msg
 
+def decrypt_DES(key, IV, ciphertext):
+    cipher = DES.new(key, DES.MODE_CBC, IV)
+    msg = cipher.decrypt(ciphertext)
+    print("Texto descifrado con DES: ", msg.hex())
+    return msg
+
 def encrypt_3DES(key, IV, text):
     text = text.encode('utf-8')
     if len(text) % 8 != 0:
@@ -36,6 +42,12 @@ def encrypt_3DES(key, IV, text):
     print("Texto cifrado con 3DES: ", msg.hex())
     return msg
 
+def decrypt_3DES(key, IV, ciphertext):
+    cipher = DES3.new(key, DES3.MODE_CBC, IV)
+    msg = cipher.decrypt(ciphertext)
+    print("Texto descifrado con 3DES: ", msg.hex())
+    return msg
+
 def encrypt_AES(key, IV, text):
     text = text.encode('utf-8')
     if len(text) % 16 != 0:
@@ -44,6 +56,12 @@ def encrypt_AES(key, IV, text):
     msg = cipher.encrypt(text)
     print("Texto a cifrar con AES: ", text.hex())
     print("Texto cifrado con AES: ", msg.hex())
+    return msg
+
+def decrypt_AES(key, IV, ciphertext):
+    cipher = AES.new(key, AES.MODE_CBC, IV)
+    msg = cipher.decrypt(ciphertext)
+    print("Texto descifrado con AES: ", msg.hex())
     return msg
 
 # Ejecucion de todo
@@ -70,10 +88,17 @@ def main():
     IV_AES = adjust_key(IV, 16)
     
     print("<----- Cifrado de texto DES ----->")
-    encrypt_DES(key_DES, IV_DES_3DES, texto)
+    decrypted_DES = encrypt_DES(key_DES, IV_DES_3DES, texto)
     print("<----- Cifrado de texto 3DES ----->")
-    encrypt_3DES(key_3DES, IV_DES_3DES, texto)
+    decrypted_3DES = encrypt_3DES(key_3DES, IV_DES_3DES, texto)
     print("<----- Cifrado de texto AES ----->")
-    encrypt_AES(key_AES, IV_AES, texto)
+    decrypted_AES = encrypt_AES(key_AES, IV_AES, texto)
+    
+    print("<----- Descifrado de texto DES ----->")
+    decrypt_DES(key_DES, IV_DES_3DES, decrypted_DES)
+    print("<----- Descifrado de texto 3DES ----->")
+    decrypt_3DES(key_3DES, IV_DES_3DES, decrypted_3DES)
+    print("<----- Descifrado de texto AES ----->")
+    decrypt_AES(key_AES, IV_AES, decrypted_AES)
     
 main()
