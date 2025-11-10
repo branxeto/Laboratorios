@@ -1,0 +1,39 @@
+networks:
+  c1_c4:
+    driver: bridge
+  c2_c4:
+    driver: bridge
+  c3_c4:
+    driver: bridge
+
+services:
+  c1:
+    image: ubuntu:16.10
+    container_name: c1
+    ports:
+      - 8081:80
+    networks:
+      - c1_c4
+  c2:
+    image: ubuntu:18.10
+    container_name: c2
+    ports:
+      - 8082:80
+    networks:
+      - c2_c4
+  c3:
+    image: ubuntu:20.10
+    container_name: c3
+    ports:
+      - 8083:80
+    networks:
+      - c3_c4
+  c4:
+    image: ubuntu:22.10
+    container_name: servidor_c4
+    ports:
+      - 8084:80
+    networks:
+      - c1_c4
+      - c2_c4
+      - c3_c4

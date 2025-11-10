@@ -1,0 +1,10 @@
+FROM ubuntu:16.10
+
+RUN apt-get update && apt-get upgrade -y && apt-get install openssh-server -y
+RUN echo "root:1234" | chpasswd
+
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+RUN mkdir -p /var/run/sshd
+
+CMD ["/usr/sbin/sshd", "-D"]
