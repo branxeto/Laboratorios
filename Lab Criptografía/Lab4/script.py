@@ -73,6 +73,7 @@ def main():
     IV = input()
     print("Ingrese texto a cifrar: ")
     texto = input()
+    print("Texto en hexadecimal: ", texto.encode('utf-8').hex())
     
     # Item 2
     print("<--- Ajuste de llaves DES ---->")

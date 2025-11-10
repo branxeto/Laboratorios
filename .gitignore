@@ -3,8 +3,8 @@ mi_entorno/
 */mi_entorno/
 **/mi_entorno/
 venv/
+.venv/
 */venv/
-**/venv/
 .env/
 */.env/
 **/.env/
