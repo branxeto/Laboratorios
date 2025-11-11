@@ -1,0 +1,60 @@
+seed: 42
+target: "MedHouseVal"   # Cambia por tu y real
+test_size: 0.2                      # 80/20 split
+stratify: true                      # estratificado si es clasificación
+scoring: "neg_mean_squared_error"   # Usamos MSE para regresión
+evaluation_every_epochs: 5          # descartar peor cada 5 épocas
+max_epochs: 50
+n_jobs: -1                          # paralelismo (usa todos los cores)
+
+# Preprocesamiento
+preprocess:
+  impute_strategy_num: "median"
+  impute_strategy_cat: "most_frequent"
+  scale_numeric: true
+  one_hot_encode: true
+
+# Entrenamiento en lotes
+training:
+  batch_size: 256
+  shuffle: true
+
+logistic_configs:
+  - name: "log_A"
+    loss: "squared_error"             # Cambié a squared_error para regresión
+    learning_rate: "constant"        # "constant", "optimal", "invscaling", "adaptive"
+    eta0: 0.01
+    alpha: 0.0001                   # L2
+    penalty: "l2"
+  - name: "log_B"
+    loss: "squared_error"             # Cambié a squared_error para regresión
+    learning_rate: "constant"
+    eta0: 0.1
+    alpha: 0.001
+    penalty: "l2"
+  - name: "log_C"
+    loss: "squared_error"             # Cambié a squared_error para regresión
+    learning_rate: "constant"
+    eta0: 0.01
+    alpha: 0.00001
+    penalty: "l2"
+
+svm_configs:
+  - name: "svm_A"
+    loss: "squared_error"             # Usamos squared_error para regresión
+    learning_rate: "optimal"
+    eta0: 0.01
+    alpha: 0.0001
+    penalty: "l2"
+  - name: "svm_B"
+    loss: "squared_error"             # Usamos squared_error para regresión
+    learning_rate: "constant"
+    eta0: 0.05
+    alpha: 0.001
+    penalty: "l2"
+  - name: "svm_C"
+    loss: "squared_error"             # Usamos squared_error para regresión
+    learning_rate: "constant"
+    eta0: 0.005
+    alpha: 0.00001
+    penalty: "l2"
